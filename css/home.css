@@ -1,0 +1,107 @@
+* {
+  padding: 0;
+  margin: 0;
+  font-family: "roboto", sans-serif;
+}
+.container {
+  background-color: antiquewhite;
+}
+header {
+  width: 100%;
+  height: auto;
+  background-color: rgb(233, 118, 143);
+  font-size: 40px;
+  font-weight: bold;
+  text-transform: uppercase;
+  text-align: center;
+  color: aliceblue;
+  text-shadow: 5px 5px 5px #520e1b;
+}
+nav {
+  height: 45px;
+  background-color: rgb(233, 118, 143);
+}
+nav .menu {
+  display: flex;
+  justify-content: center;
+}
+nav .menu:hover {
+  transform: translateY(-3px);
+}
+.menu a:hover {
+  color: #f0440a;
+}
+.logo {
+  position: absolute;
+  left: 50px;
+}
+.logo h1 {
+  font-size: 25px;
+  text-shadow: 0px 0px 10px rgb(242, 227, 15);
+  color: #f3f1ef;
+  text-transform: uppercase;
+  margin-top: 10px;
+}
+nav .menu ul {
+  list-style: none;
+}
+nav .menu ul li {
+  float: left;
+  margin: 0 15px;
+  line-height: 45px;
+}
+nav .menu ul li a {
+  color: rgb(251, 250, 250);
+  font-size: 15px;
+  text-decoration: none;
+  text-transform: uppercase;
+  margin-left: 50px;
+}
+nav .menu span a {
+  padding: 5px 10px;
+  border-radius: 20px;
+  border: none;
+  background: #90054f;
+  color: #fff;
+}
+.banner {
+  height: 637px;
+  display: flex;
+  justify-content: center;
+}
+.banner img {
+  width: 20%;
+  height: 70%;
+  border-radius: 15px 50px;
+  margin: 70px;
+}
+.content {
+  margin-top: 150px;
+  line-height: 30px;
+}
+.content span {
+  color: rgb(159, 7, 68);
+}
+.content h2 {
+  margin-top: 10px;
+}
+.content h3 {
+  line-height: 25px;
+  margin-top: 10px;
+}
+.lienhe a {
+  padding: 5px 10px;
+  border-radius: 20px;
+  border: none;
+  background: #140aa1;
+  color: #fff;
+  cursor: pointer;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+.lienhe a:hover {
+  color: #05f6da;
+}
+.lienhe:hover {
+  transform: translateY(-3px);
+}

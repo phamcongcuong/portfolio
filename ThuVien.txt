@@ -1,0 +1,1406 @@
+#include <iostream>
+#include <string>
+#include <limits>
+#include <vector>
+#include <fstream>
+#include <algorithm>
+#include <iomanip>
+#include <sstream>
+#include <ctime>
+using namespace std;
+
+void inDauPhan(const string& tieuDe, int n = 52) {
+    cout << "+";
+    for (int i = 0; i < n; i++) cout << "=";
+    cout << "+\n";
+    cout << "|" << left << setw(n) << ("  " + tieuDe) << "|\n";
+    cout << "+";
+    for (int i = 0; i < n; i++) cout << "=";
+    cout << "+\n";
+}
+
+string catChuoi(const string& s, int maxLen) {
+    if ((int)s.size() <= maxLen) return s;
+    return s.substr(0, maxLen - 2) + "..";
+}
+
+void inHangBang(const vector<string>& cells, const vector<int>& widths) {
+    cout << "|";
+    for (size_t i = 0; i < cells.size(); i++) {
+        string val = catChuoi(cells[i], widths[i]);
+        cout << " " << left << setw(widths[i]) << val << " |";
+    }
+    cout << "\n";
+}
+
+void inDuongKe(const vector<int>& widths) {
+    cout << "+";
+    for (int w : widths) {
+        for (int i = 0; i < w + 2; i++) cout << "-";
+        cout << "+";
+    }
+    cout << "\n";
+}
+
+
+void ghiHangBangFile(ofstream& ofs, const vector<string>& cells, const vector<int>& widths) {
+    ofs << "|";
+    for (size_t i = 0; i < cells.size(); i++) {
+        string val = cells[i];
+        if ((int)val.size() > widths[i]) val = val.substr(0, widths[i] - 2) + "..";
+        ofs << " " << left << setw(widths[i]) << val << " |";
+    }
+    ofs << "\n";
+}
+
+void ghiDuongKeFile(ofstream& ofs, const vector<int>& widths) {
+    ofs << "+";
+    for (int w : widths) {
+        for (int i = 0; i < w + 2; i++) ofs << "-";
+        ofs << "+";
+    }
+    ofs << "\n";
+}
+
+void ghiDauPhanFile(ofstream& ofs, const string& tieuDe, int n = 60) {
+    ofs << "+";
+    for (int i = 0; i < n; i++) ofs << "=";
+    ofs << "+\n";
+    ofs << "|" << left << setw(n) << ("  " + tieuDe) << "|\n";
+    ofs << "+";
+    for (int i = 0; i < n; i++) ofs << "=";
+    ofs << "+\n";
+}
+
+
+string layNgayHomNay() {
+    time_t now = time(nullptr);
+    tm* t = localtime(&now);
+    ostringstream oss;
+    oss << setfill('0') << setw(2) << t->tm_mday << "/"
+        << setw(2) << (t->tm_mon + 1) << "/"
+        << setw(4) << (t->tm_year + 1900);
+    return oss.str();
+}
+
+string layGioHienTai() {
+    time_t now = time(nullptr);
+    tm* t = localtime(&now);
+    char buf[6];
+    sprintf(buf, "%02d:%02d", t->tm_hour, t->tm_min);
+    return string(buf);
+}
+
+long ngayThanhSo(const string& ngay) {
+    if (ngay.size() < 10) return 0;
+    int d = 0, m = 0, y = 0;
+    sscanf(ngay.c_str(), "%d/%d/%d", &d, &m, &y);
+    return (long)y * 10000L + (long)m * 100L + (long)d;
+}
+
+int gioThanhPhut(const string& gio) {
+    if (gio.size() < 5) return 0;
+    int h = 0, ph = 0;
+    sscanf(gio.c_str(), "%d:%d", &h, &ph);
+    return h * 60 + ph;
+}
+
+bool isQuaHanTra(const string& ngayHenTra) {
+    return ngayThanhSo(ngayHenTra) < ngayThanhSo(layNgayHomNay());
+}
+
+bool isQuaGioTra(const string& gioTra) {
+    return gioThanhPhut(gioTra) < gioThanhPhut(layGioHienTai());
+}
+
+
+vector<int> bangNgangWidths() {
+    return {3, 8, 8, 28, 20, 14, 8, 10, 5, 6, 12, 14};
+}
+
+void inTieuDeBangNgang() {
+    vector<int> w = bangNgangWidths();
+    inDuongKe(w);
+    inHangBang({"STT","LOAI","MA SACH","TEN SACH","CHU DE","TAC GIA",
+                "NXB","NGAY XB","TRANG","SO BAN","MUON/GIO","HEN TRA/GIO"}, w);
+    inDuongKe(w);
+}
+
+void ghiTieuDeBangNgangFile(ofstream& ofs) {
+    vector<int> w = bangNgangWidths();
+    ghiDuongKeFile(ofs, w);
+    ghiHangBangFile(ofs, {"STT","LOAI","MA SACH","TEN SACH","CHU DE","TAC GIA",
+                          "NXB","NGAY XB","TRANG","SO BAN","MUON/GIO","HEN TRA/GIO"}, w);
+    ghiDuongKeFile(ofs, w);
+}
+
+// ============================================================
+// LICH SU GIAO DICH (luu vet cac giao dich muon/tra)
+// ============================================================
+struct GiaoDich {
+    string loai;       // "MUON_VE", "MUON_DOC", "TRA_VE", "TRA_DOC"
+    string maSach;
+    string tenSach;
+    string tacGia;
+    string thoiGian;   // ngay hoac gio
+    string ghiChu;     // ngay hen tra / gio tra / qua han...
+};
+
+// ============================================================
+// CLASS SACH (co so)
+// ============================================================
+class Sach {
+protected:
+    string maSach;
+    string tenSach;
+    string chuDe;
+    string tacGia;
+    string nhaXuatBan;
+    string ngayThangNamXuatBan;
+    int    soTrang;
+    int    soBanLuuThuVien;
+
+public:
+    Sach()
+        : maSach(""), tenSach(""), chuDe(""), tacGia(""),
+          nhaXuatBan(""), ngayThangNamXuatBan(""),
+          soTrang(0), soBanLuuThuVien(0) {}
+
+    Sach(const string& ma, const string& ten, const string& cd,
+         const string& tg, const string& nxb, const string& ngayXB,
+         int soTrang_, int soBan)
+        : maSach(ma), tenSach(ten), chuDe(cd), tacGia(tg),
+          nhaXuatBan(nxb), ngayThangNamXuatBan(ngayXB),
+          soTrang(soTrang_), soBanLuuThuVien(soBan) {}
+
+    virtual ~Sach() {}
+
+    string getMaSach()      const { return maSach; }
+    string getTenSach()     const { return tenSach; }
+    string getChuDe()       const { return chuDe; }
+    string getTacGia()      const { return tacGia; }
+    string getNhaXuatBan()  const { return nhaXuatBan; }
+    string getNgayXuatBan() const { return ngayThangNamXuatBan; }
+    int    getSoTrang()     const { return soTrang; }
+    int    getSoBan()       const { return soBanLuuThuVien; }
+
+    void setMaSach(const string& v)      { maSach = v; }
+    void setTenSach(const string& v)     { tenSach = v; }
+    void setChuDe(const string& v)       { chuDe = v; }
+    void setTacGia(const string& v)      { tacGia = v; }
+    void setNhaXuatBan(const string& v)  { nhaXuatBan = v; }
+    void setNgayXuatBan(const string& v) { ngayThangNamXuatBan = v; }
+    void setSoTrang(int v)               { soTrang = v; }
+    void setSoBan(int v)                 { soBanLuuThuVien = v; }
+
+    virtual string getLoai()              const = 0;
+    virtual void   nhapThongTin()               = 0;
+    virtual void   xuatThongTin()         const = 0;
+    virtual void   ghiThongTinRaFile(ofstream& ofs) const = 0; // in dep ra file
+    virtual void   ghiFile(ofstream& ofs) const = 0;           // luu data
+    virtual void   docFile(ifstream& ifs)       = 0;
+
+    virtual void xuatHangBangNgang(int stt, const vector<int>& w) const {
+        inHangBang({to_string(stt), getLoai(), maSach, tenSach, chuDe, tacGia,
+                    nhaXuatBan, ngayThangNamXuatBan, to_string(soTrang),
+                    to_string(soBanLuuThuVien), "-", "-"}, w);
+    }
+
+    virtual void xuatHangBangNgangFile(ofstream& ofs, int stt, const vector<int>& w) const {
+        ghiHangBangFile(ofs, {to_string(stt), getLoai(), maSach, tenSach, chuDe, tacGia,
+                              nhaXuatBan, ngayThangNamXuatBan, to_string(soTrang),
+                              to_string(soBanLuuThuVien), "-", "-"}, w);
+    }
+
+protected:
+    void nhapThongTinCoBan() {
+        cout << "\n-- Nhap thong tin cuon sach --\n";
+        cout << "========================================\n";
+        cout << " Ma sach       : "; getline(cin, maSach);
+        cout << " Ten sach      : "; getline(cin, tenSach);
+        cout << " Chu de        : "; getline(cin, chuDe);
+        cout << " Tac gia       : "; getline(cin, tacGia);
+        cout << " Nha xuat ban  : "; getline(cin, nhaXuatBan);
+        cout << " Ngay xuat ban : "; getline(cin, ngayThangNamXuatBan);
+        cout << " So trang      : "; cin >> soTrang;
+        cout << " So ban luu    : "; cin >> soBanLuuThuVien;
+        cin.ignore();
+        cout << "========================================\n";
+    }
+
+    void ghiThongTinCoBanData(ofstream& ofs) const {
+        ofs << maSach << "\n" << tenSach << "\n" << chuDe << "\n"
+            << tacGia << "\n" << nhaXuatBan << "\n" << ngayThangNamXuatBan << "\n"
+            << soTrang << "\n" << soBanLuuThuVien << "\n";
+    }
+
+    void docThongTinCoBan(ifstream& ifs) {
+        getline(ifs, maSach);
+        getline(ifs, tenSach);
+        getline(ifs, chuDe);
+        getline(ifs, tacGia);
+        getline(ifs, nhaXuatBan);
+        getline(ifs, ngayThangNamXuatBan);
+        ifs >> soTrang >> soBanLuuThuVien;
+        ifs.ignore();
+    }
+
+    // Ghi bang thong tin co ban ra file (dang dep)
+    void ghiBangCoBanFile(ofstream& ofs) const {
+        vector<int> w = {20, 30};
+        ghiDuongKeFile(ofs, w);
+        ghiHangBangFile(ofs, {"TRUONG", "GIA TRI"}, w);
+        ghiDuongKeFile(ofs, w);
+        ghiHangBangFile(ofs, {"Ma sach",      maSach},                     w);
+        ghiHangBangFile(ofs, {"Ten sach",      tenSach},                    w);
+        ghiHangBangFile(ofs, {"Chu de",        chuDe},                      w);
+        ghiHangBangFile(ofs, {"Tac gia",       tacGia},                     w);
+        ghiHangBangFile(ofs, {"Nha xuat ban",  nhaXuatBan},                 w);
+        ghiHangBangFile(ofs, {"Ngay xuat ban", ngayThangNamXuatBan},        w);
+        ghiHangBangFile(ofs, {"So trang",      to_string(soTrang)},         w);
+        ghiHangBangFile(ofs, {"So ban luu",    to_string(soBanLuuThuVien)}, w);
+    }
+};
+
+// ============================================================
+// SACH THU VIEN (chua muon)
+// ============================================================
+class SachThuVien : public Sach {
+public:
+    SachThuVien() : Sach() {}
+    SachThuVien(const string& ma, const string& ten, const string& cd,
+                const string& tg, const string& nxb, const string& ngayXB,
+                int soTrang, int soBan)
+        : Sach(ma, ten, cd, tg, nxb, ngayXB, soTrang, soBan) {}
+
+    string getLoai() const override { return "SACH_TV"; }
+
+    void nhapThongTin() override { nhapThongTinCoBan(); }
+
+    void xuatThongTin() const override {
+        cout << "\n==================== SACH THU VIEN =====================\n";
+        vector<int> w = {20, 30};
+        inDuongKe(w);
+        inHangBang({"    THONG TIN", "          CHI TIET"}, w);
+        inDuongKe(w);
+        inHangBang({"Ma sach",      maSach},                     w);
+        inHangBang({"Ten sach",      tenSach},                    w);
+        inHangBang({"Chu de",        chuDe},                      w);
+        inHangBang({"Tac gia",       tacGia},                     w);
+        inHangBang({"Nha xuat ban",  nhaXuatBan},                 w);
+        inHangBang({"Ngay xuat ban", ngayThangNamXuatBan},        w);
+        inHangBang({"So trang",      to_string(soTrang)},         w);
+        inHangBang({"So ban luu",    to_string(soBanLuuThuVien)}, w);
+        inDuongKe(w);
+    }
+
+    void ghiThongTinRaFile(ofstream& ofs) const override {
+        ofs << "\n  [SACH THU VIEN - CHUA DUOC MUON]\n";
+        ghiBangCoBanFile(ofs);
+        vector<int> w = {20, 30};
+        ghiDuongKeFile(ofs, w);
+        ofs << "\n";
+    }
+
+    void xuatHangBangNgang(int stt, const vector<int>& w) const override {
+        inHangBang({to_string(stt),"SACH_TV", maSach, tenSach, chuDe, tacGia,
+                    nhaXuatBan, ngayThangNamXuatBan, to_string(soTrang),
+                    to_string(soBanLuuThuVien), "-", "-"}, w);
+    }
+
+    void xuatHangBangNgangFile(ofstream& ofs, int stt, const vector<int>& w) const override {
+        ghiHangBangFile(ofs, {to_string(stt),"SACH_TV", maSach, tenSach, chuDe, tacGia,
+                              nhaXuatBan, ngayThangNamXuatBan, to_string(soTrang),
+                              to_string(soBanLuuThuVien), "-", "-"}, w);
+    }
+
+    void ghiFile(ofstream& ofs) const override {
+        ofs << "SACH_TV\n";
+        ghiThongTinCoBanData(ofs);
+    }
+
+    void docFile(ifstream& ifs) override { docThongTinCoBan(ifs); }
+};
+
+// ============================================================
+// SACH MUON VE
+// ============================================================
+class SachMuonVe : public Sach {
+private:
+    string ngayMuon;
+    string ngayHenTra;
+
+public:
+    SachMuonVe() : Sach() {}
+    SachMuonVe(const string& ma, const string& ten, const string& cd,
+               const string& tg, const string& nxb, const string& ngayXB,
+               int soTrang, int soBan,
+               const string& ngayMuon_, const string& ngayHenTra_)
+        : Sach(ma, ten, cd, tg, nxb, ngayXB, soTrang, soBan),
+          ngayMuon(ngayMuon_), ngayHenTra(ngayHenTra_) {}
+
+    string getNgayMuon()   const { return ngayMuon; }
+    string getNgayHenTra() const { return ngayHenTra; }
+    void setNgayMuon(const string& v)    { ngayMuon   = v; }
+    void setNgayHenTra(const string& v)  { ngayHenTra = v; }
+
+    bool isQuaHan() const { return isQuaHanTra(ngayHenTra); }
+
+    string getLoai() const override { return "MUON_VE"; }
+
+    void nhapThongTin() override {
+        cout << "\n--- Nhap thong tin Sach Muon Ve ---\n";
+        nhapThongTinCoBan();
+        cout << "  Ngay muon    (dd/mm/yyyy): "; getline(cin, ngayMuon);
+        cout << "  Ngay hen tra (dd/mm/yyyy): "; getline(cin, ngayHenTra);
+    }
+
+    void nhapThongTinMuon() {
+        cout << "  Ngay muon    (dd/mm/yyyy) [Enter = hom nay " << layNgayHomNay() << "]: ";
+        getline(cin, ngayMuon);
+        if (ngayMuon.empty()) ngayMuon = layNgayHomNay();
+        cout << "  Ngay hen tra (dd/mm/yyyy): "; getline(cin, ngayHenTra);
+    }
+
+    void xuatThongTin() const override {
+        string quaHan = isQuaHan() ? " [** QUA HAN **]" : "";
+        cout << "\n             [SACH DA DUOC MUON VE]" << quaHan << "\n";
+        vector<int> w = {20, 30};
+        inDuongKe(w);
+        inHangBang({"TRUONG", "GIA TRI"}, w);
+        inDuongKe(w);
+        inHangBang({"Ma sach",       maSach},                     w);
+        inHangBang({"Ten sach",       tenSach},                    w);
+        inHangBang({"Chu de",         chuDe},                      w);
+        inHangBang({"Tac gia",        tacGia},                     w);
+        inHangBang({"Nha xuat ban",   nhaXuatBan},                 w);
+        inHangBang({"Ngay xuat ban",  ngayThangNamXuatBan},        w);
+        inHangBang({"So trang",       to_string(soTrang)},         w);
+        inHangBang({"So ban luu",     to_string(soBanLuuThuVien)}, w);
+        inHangBang({"Ngay muon",      ngayMuon},                   w);
+        inHangBang({"Ngay hen tra",   ngayHenTra + quaHan},        w);
+        inDuongKe(w);
+    }
+
+    // Ghi noi dung sach muon ve ra file (dang dep, tuong duong man hinh)
+    void ghiThongTinRaFile(ofstream& ofs) const override {
+        string quaHan = isQuaHan() ? " [** QUA HAN **]" : "";
+        ofs << "\n  [SACH DA DUOC MUON VE]" << quaHan << "\n";
+        ghiBangCoBanFile(ofs);
+        vector<int> w = {20, 30};
+        ghiHangBangFile(ofs, {"Ngay muon",    ngayMuon},              w);
+        ghiHangBangFile(ofs, {"Ngay hen tra", ngayHenTra + quaHan},   w);
+        ghiDuongKeFile(ofs, w);
+        ofs << "\n";
+    }
+
+    void xuatHangBangNgang(int stt, const vector<int>& w) const override {
+        string extra2 = ngayHenTra + (isQuaHan() ? "[QH]" : "");
+        inHangBang({to_string(stt),"MUON_VE", maSach, tenSach, chuDe, tacGia,
+                    nhaXuatBan, ngayThangNamXuatBan, to_string(soTrang),
+                    to_string(soBanLuuThuVien), ngayMuon, extra2}, w);
+    }
+
+    void xuatHangBangNgangFile(ofstream& ofs, int stt, const vector<int>& w) const override {
+        string extra2 = ngayHenTra + (isQuaHan() ? "[QH]" : "");
+        ghiHangBangFile(ofs, {to_string(stt),"MUON_VE", maSach, tenSach, chuDe, tacGia,
+                              nhaXuatBan, ngayThangNamXuatBan, to_string(soTrang),
+                              to_string(soBanLuuThuVien), ngayMuon, extra2}, w);
+    }
+
+    void ghiFile(ofstream& ofs) const override {
+        ofs << "MUON_VE\n";
+        ghiThongTinCoBanData(ofs);
+        ofs << ngayMuon << "\n" << ngayHenTra << "\n";
+    }
+
+    void docFile(ifstream& ifs) override {
+        docThongTinCoBan(ifs);
+        getline(ifs, ngayMuon);
+        getline(ifs, ngayHenTra);
+    }
+};
+
+// ============================================================
+// SACH MUON DOC TAI CHO
+// ============================================================
+class SachMuonDoc : public Sach {
+private:
+    string gioMuon;
+    string gioTra;
+
+public:
+    SachMuonDoc() : Sach() {}
+    SachMuonDoc(const string& ma, const string& ten, const string& cd,
+                const string& tg, const string& nxb, const string& ngayXB,
+                int soTrang, int soBan,
+                const string& gioMuon_, const string& gioTra_)
+        : Sach(ma, ten, cd, tg, nxb, ngayXB, soTrang, soBan),
+          gioMuon(gioMuon_), gioTra(gioTra_) {}
+
+    string getGioMuon() const { return gioMuon; }
+    string getGioTra()  const { return gioTra;  }
+    void setGioMuon(const string& v) { gioMuon = v; }
+    void setGioTra (const string& v) { gioTra  = v; }
+
+    bool isQuaGio() const { return isQuaGioTra(gioTra); }
+
+    string getLoai() const override { return "MUON_DOC"; }
+
+    void nhapThongTin() override {
+        cout << "\n--- Nhap thong tin Sach Muon Doc ---\n";
+        nhapThongTinCoBan();
+        cout << "  Gio muon (HH:MM) [Enter = hien tai " << layGioHienTai() << "]: ";
+        getline(cin, gioMuon);
+        if (gioMuon.empty()) gioMuon = layGioHienTai();
+        cout << "  Gio tra  (HH:MM): "; getline(cin, gioTra);
+    }
+
+    void nhapThongTinMuon() {
+        cout << "  Gio muon (HH:MM) [Enter = hien tai " << layGioHienTai() << "]: ";
+        getline(cin, gioMuon);
+        if (gioMuon.empty()) gioMuon = layGioHienTai();
+        cout << "  Gio tra  (HH:MM): "; getline(cin, gioTra);
+    }
+
+    void xuatThongTin() const override {
+        string quaGio = isQuaGio() ? " [** QUA GIO **]" : "";
+        cout << "\n             [SACH DA DUOC MUON DOC TAI CHO]" << quaGio << "\n";
+        vector<int> w = {20, 30};
+        inDuongKe(w);
+        inHangBang({"TRUONG", "GIA TRI"}, w);
+        inDuongKe(w);
+        inHangBang({"Ma sach",      maSach},                     w);
+        inHangBang({"Ten sach",      tenSach},                    w);
+        inHangBang({"Chu de",        chuDe},                      w);
+        inHangBang({"Tac gia",       tacGia},                     w);
+        inHangBang({"Nha xuat ban",  nhaXuatBan},                 w);
+        inHangBang({"Ngay xuat ban", ngayThangNamXuatBan},        w);
+        inHangBang({"So trang",      to_string(soTrang)},         w);
+        inHangBang({"So ban luu",    to_string(soBanLuuThuVien)}, w);
+        inHangBang({"Gio muon",      gioMuon},                    w);
+        inHangBang({"Gio tra",       gioTra + quaGio},            w);
+        inDuongKe(w);
+    }
+
+    // Ghi noi dung sach muon doc ra file (dang dep, tuong duong man hinh)
+    void ghiThongTinRaFile(ofstream& ofs) const override {
+        string quaGio = isQuaGio() ? " [** QUA GIO **]" : "";
+        ofs << "\n  [SACH DA DUOC MUON DOC TAI CHO]" << quaGio << "\n";
+        ghiBangCoBanFile(ofs);
+        vector<int> w = {20, 30};
+        ghiHangBangFile(ofs, {"Gio muon", gioMuon},            w);
+        ghiHangBangFile(ofs, {"Gio tra",  gioTra + quaGio},    w);
+        ghiDuongKeFile(ofs, w);
+        ofs << "\n";
+    }
+
+    void xuatHangBangNgang(int stt, const vector<int>& w) const override {
+        string extra2 = gioTra + (isQuaGio() ? "[QG]" : "");
+        inHangBang({to_string(stt),"MUON_DOC", maSach, tenSach, chuDe, tacGia,
+                    nhaXuatBan, ngayThangNamXuatBan, to_string(soTrang),
+                    to_string(soBanLuuThuVien), gioMuon, extra2}, w);
+    }
+
+    void xuatHangBangNgangFile(ofstream& ofs, int stt, const vector<int>& w) const override {
+        string extra2 = gioTra + (isQuaGio() ? "[QG]" : "");
+        ghiHangBangFile(ofs, {to_string(stt),"MUON_DOC", maSach, tenSach, chuDe, tacGia,
+                              nhaXuatBan, ngayThangNamXuatBan, to_string(soTrang),
+                              to_string(soBanLuuThuVien), gioMuon, extra2}, w);
+    }
+
+    void ghiFile(ofstream& ofs) const override {
+        ofs << "MUON_DOC\n";
+        ghiThongTinCoBanData(ofs);
+        ofs << gioMuon << "\n" << gioTra << "\n";
+    }
+
+    void docFile(ifstream& ifs) override {
+        docThongTinCoBan(ifs);
+        getline(ifs, gioMuon);
+        getline(ifs, gioTra);
+    }
+};
+
+// ============================================================
+// CLASS THU VIEN
+// ============================================================
+class ThuVien {
+private:
+    vector<Sach*>    danhSach;
+    vector<GiaoDich> lichSuGiaoDich; // lich su toan bo giao dich
+    string           tenFile;
+    string           tenFileBaoCao;
+    bool             daDuocLuu;
+
+    // ---------- Ghi file du lieu ----------
+    bool _ghiFileInternal(bool silent) const {
+        ofstream ofs(tenFile);
+        if (!ofs) {
+            if (!silent) cout << "\n[LOI] Khong the ghi file du lieu: " << tenFile << "\n";
+            return false;
+        }
+        ofs << danhSach.size() << "\n";
+        for (auto s : danhSach) s->ghiFile(ofs);
+        // Ghi lich su
+        ofs << lichSuGiaoDich.size() << "\n";
+        for (auto& gd : lichSuGiaoDich) {
+            ofs << gd.loai    << "\n"
+                << gd.maSach  << "\n"
+                << gd.tenSach << "\n"
+                << gd.tacGia  << "\n"
+                << gd.thoiGian<< "\n"
+                << gd.ghiChu  << "\n";
+        }
+        ofs.close();
+        return true;
+    }
+
+    // ---------- Xuat file bao cao ----------
+    bool _xuatFileBaoCaoInternal(bool silent) const {
+        ofstream ofs(tenFileBaoCao);
+        if (!ofs) {
+            if (!silent) cout << "\n[LOI] Khong the ghi file bao cao: " << tenFileBaoCao << "\n";
+            return false;
+        }
+
+        // Tiêu đề chính
+        ofs << "+================================================================================================+\n";
+        ofs << "|                          BAO CAO QUAN LY MUON TRA SACH THU VIEN                               |\n";
+        ofs << "|                          Ngay xuat: " << left << setw(55) << (layNgayHomNay() + "  " + layGioHienTai()) << "|\n";
+        ofs << "+================================================================================================+\n\n";
+
+        // --- Thong ke tong quan ---
+        int tongSo = (int)danhSach.size();
+        int soTV = 0, soMV = 0, soMD = 0;
+        int soMVQuaHan = 0, soMDQuaGio = 0;
+        vector<Sach*> dsMuonVe, dsMuonDoc, dsQuaHan, dsQuaGio;
+
+        for (auto s : danhSach) {
+            if (s->getLoai() == "SACH_TV") {
+                soTV++;
+            } else if (s->getLoai() == "MUON_VE") {
+                soMV++;
+                dsMuonVe.push_back(s);
+                SachMuonVe* mv = dynamic_cast<SachMuonVe*>(s);
+                if (mv && mv->isQuaHan()) { soMVQuaHan++; dsQuaHan.push_back(s); }
+            } else if (s->getLoai() == "MUON_DOC") {
+                soMD++;
+                dsMuonDoc.push_back(s);
+                SachMuonDoc* md = dynamic_cast<SachMuonDoc*>(s);
+                if (md && md->isQuaGio()) { soMDQuaGio++; dsQuaGio.push_back(s); }
+            }
+        }
+
+        // Thong ke
+        ghiDauPhanFile(ofs, " THONG KE TONG QUAN");
+        vector<int> wTK = {38, 12};
+        ghiDuongKeFile(ofs, wTK);
+        ghiHangBangFile(ofs, {"            HANG MUC", "  SO LUONG"}, wTK);
+        ghiDuongKeFile(ofs, wTK);
+        ghiHangBangFile(ofs, {"Tong so sach trong he thong",            to_string(tongSo)},      wTK);
+        ofs << "+----------------------------------------+--------------+\n";
+        ghiHangBangFile(ofs, {"Sach trong thu vien (chua muon)",        to_string(soTV)},        wTK);
+        ofs << "+----------------------------------------+--------------+\n";
+        ghiHangBangFile(ofs, {"Sach dang muon ve nha",                  to_string(soMV)},        wTK);
+        ghiHangBangFile(ofs, {"  >> Trong do: QUA HAN tra",             to_string(soMVQuaHan)},  wTK);
+        ofs << "+----------------------------------------+--------------+\n";
+        ghiHangBangFile(ofs, {"Sach dang muon doc tai cho",             to_string(soMD)},        wTK);
+        ghiHangBangFile(ofs, {"  >> Trong do: QUA GIO tra",             to_string(soMDQuaGio)},  wTK);
+        ghiDuongKeFile(ofs, wTK);
+        ofs << "\n";
+
+        // --- Danh sach toan bo sach ---
+        ghiDauPhanFile(ofs, " DANH SACH TOAN BO SACH TRONG HE THONG");
+        vector<int> w = bangNgangWidths();
+        ghiTieuDeBangNgangFile(ofs);
+        for (size_t i = 0; i < danhSach.size(); i++)
+            danhSach[i]->xuatHangBangNgangFile(ofs, (int)i + 1, w);
+        ghiDuongKeFile(ofs, w);
+        ofs << "  Tong cong: " << tongSo << " cuon\n\n";
+
+        // --- Chi tiet sach dang muon ve nha ---
+        ghiDauPhanFile(ofs, " DANH SACH SACH DANG MUON VE NHA");
+        if (dsMuonVe.empty()) {
+            ofs << "  [Khong co sach nao dang duoc muon ve nha]\n\n";
+        } else {
+            for (size_t i = 0; i < dsMuonVe.size(); i++) {
+                ofs << "  [" << (i+1) << "] ";
+                dsMuonVe[i]->ghiThongTinRaFile(ofs);
+            }
+        }
+
+        // --- Chi tiet sach dang muon doc tai cho ---
+        ghiDauPhanFile(ofs, " DANH SACH SACH DANG MUON DOC TAI CHO");
+        if (dsMuonDoc.empty()) {
+            ofs << "  [Khong co sach nao dang duoc muon doc tai cho]\n\n";
+        } else {
+            for (size_t i = 0; i < dsMuonDoc.size(); i++) {
+                ofs << "  [" << (i+1) << "] ";
+                dsMuonDoc[i]->ghiThongTinRaFile(ofs);
+            }
+        }
+
+        // --- Canh bao qua han ---
+        if (!dsQuaHan.empty()) {
+            ghiDauPhanFile(ofs, " CANH BAO: SACH MUON VE DA QUA HAN TRA");
+            for (size_t i = 0; i < dsQuaHan.size(); i++) {
+                ofs << "  [" << (i+1) << "] ";
+                dsQuaHan[i]->ghiThongTinRaFile(ofs);
+            }
+        }
+        if (!dsQuaGio.empty()) {
+            ghiDauPhanFile(ofs, " CANH BAO: SACH MUON DOC DA QUA GIO TRA");
+            for (size_t i = 0; i < dsQuaGio.size(); i++) {
+                ofs << "  [" << (i+1) << "] ";
+                dsQuaGio[i]->ghiThongTinRaFile(ofs);
+            }
+        }
+
+        // --- Lich su giao dich ---
+        ghiDauPhanFile(ofs, " LICH SU GIAO DICH MUON / TRA SACH");
+        if (lichSuGiaoDich.empty()) {
+            ofs << "  [Chua co giao dich nao duoc ghi nhan]\n\n";
+        } else {
+            vector<int> wGD = {4, 10, 10, 28, 16, 12, 20};
+            ghiDuongKeFile(ofs, wGD);
+            ghiHangBangFile(ofs, {"STT","LOAI GD","MA SACH","TEN SACH","TAC GIA","THOI GIAN","GHI CHU"}, wGD);
+            ghiDuongKeFile(ofs, wGD);
+            for (size_t i = 0; i < lichSuGiaoDich.size(); i++) {
+                auto& gd = lichSuGiaoDich[i];
+                ghiHangBangFile(ofs, {
+                    to_string(i+1),
+                    gd.loai,
+                    gd.maSach,
+                    gd.tenSach,
+                    gd.tacGia,
+                    gd.thoiGian,
+                    gd.ghiChu
+                }, wGD);
+            }
+            ghiDuongKeFile(ofs, wGD);
+            ofs << "  Tong so giao dich: " << lichSuGiaoDich.size() << "\n\n";
+        }
+
+        // Ghi chu
+        ofs << "  Ghi chu: [QH]=Qua han tra (muon ve)  [QG]=Qua gio tra (muon doc)\n";
+        ofs << "           MUON_VE=Muon ve nha  MUON_DOC=Muon doc tai cho\n";
+        ofs << "           TRA_VE=Tra sach muon ve  TRA_DOC=Tra sach muon doc\n\n";
+        ofs << "+================================================================================================+\n";
+        ofs << "|                                    -- HET BAO CAO --                                          |\n";
+        ofs << "+================================================================================================+\n";
+
+        ofs.close();
+        return true;
+    }
+
+public:
+    ThuVien(const string& file = "ThuVien.txt", const string& fileBaoCao = "output.txt")
+        : tenFile(file), tenFileBaoCao(fileBaoCao), daDuocLuu(true) {
+        docFileTuDong();
+    }
+
+    ~ThuVien() { for (auto p : danhSach) delete p; }
+
+    string getTenFileBaoCao() const { return tenFileBaoCao; }
+    int    getSoLuong()       const { return (int)danhSach.size(); }
+    bool   getDaDuocLuu()     const { return daDuocLuu; }
+
+    int docFileTuDong() {
+        ifstream ifs(tenFile);
+        if (!ifs) return 0;
+
+        for (auto p : danhSach) delete p;
+        danhSach.clear();
+        lichSuGiaoDich.clear();
+
+        int n = 0;
+        ifs >> n; ifs.ignore();
+        for (int i = 0; i < n; i++) {
+            string loai; getline(ifs, loai);
+            Sach* s = nullptr;
+            if      (loai == "SACH_TV")  s = new SachThuVien();
+            else if (loai == "MUON_VE")  s = new SachMuonVe();
+            else if (loai == "MUON_DOC") s = new SachMuonDoc();
+            if (s) { s->docFile(ifs); danhSach.push_back(s); }
+        }
+        // Doc lich su neu co
+        if (!ifs.eof()) {
+            int ng = 0;
+            if (ifs >> ng) {
+                ifs.ignore();
+                for (int i = 0; i < ng; i++) {
+                    GiaoDich gd;
+                    getline(ifs, gd.loai);
+                    getline(ifs, gd.maSach);
+                    getline(ifs, gd.tenSach);
+                    getline(ifs, gd.tacGia);
+                    getline(ifs, gd.thoiGian);
+                    getline(ifs, gd.ghiChu);
+                    lichSuGiaoDich.push_back(gd);
+                }
+            }
+        }
+        ifs.close();
+        daDuocLuu = true;
+        return (int)danhSach.size();
+    }
+
+    void _luuVaXuat() {
+        if (_ghiFileInternal(true)) daDuocLuu = true;
+        else { daDuocLuu = false; cout << "   CANH BAO: Khong the luu file du lieu!\n"; }
+    }
+
+    void ghiFile() const { _ghiFileInternal(false); }
+
+    void xuatFileBaoCao() const {
+        if (_xuatFileBaoCaoInternal(false))
+            cout << "  Da xuat bao cao day du ra file '" << tenFileBaoCao << "'\n\n";
+    }
+
+    // ---------- Them sach ----------
+    void themSach(Sach* s) {
+        danhSach.push_back(s);
+        daDuocLuu = false;
+        _luuVaXuat();
+    }
+
+    // ---------- Tim kiem ----------
+    SachThuVien* timSachThuVienTheoMa(const string& ma) const {
+        for (auto s : danhSach)
+            if (s->getLoai() == "SACH_TV" && s->getMaSach() == ma)
+                return dynamic_cast<SachThuVien*>(s);
+        return nullptr;
+    }
+
+    vector<SachThuVien*> timSachThuVienTheoTen(const string& ten) const {
+        vector<SachThuVien*> kq;
+        for (auto s : danhSach) {
+            if (s->getLoai() != "SACH_TV") continue;
+            string t = s->getTenSach(), q = ten;
+            transform(t.begin(), t.end(), t.begin(), ::tolower);
+            transform(q.begin(), q.end(), q.begin(), ::tolower);
+            if (t.find(q) != string::npos) kq.push_back(dynamic_cast<SachThuVien*>(s));
+        }
+        return kq;
+    }
+
+    Sach* timTheoMa(const string& ma) const {
+        for (auto s : danhSach) if (s->getMaSach() == ma) return s;
+        return nullptr;
+    }
+
+    vector<Sach*> timTheoTen(const string& ten) const {
+        vector<Sach*> kq;
+        for (auto s : danhSach) {
+            string t = s->getTenSach(), q = ten;
+            transform(t.begin(), t.end(), t.begin(), ::tolower);
+            transform(q.begin(), q.end(), q.begin(), ::tolower);
+            if (t.find(q) != string::npos) kq.push_back(s);
+        }
+        return kq;
+    }
+
+    vector<Sach*> timTheoNXB(const string& nxb) const {
+        vector<Sach*> kq;
+        for (auto s : danhSach) {
+            string n = s->getNhaXuatBan(), q = nxb;
+            transform(n.begin(), n.end(), n.begin(), ::tolower);
+            transform(q.begin(), q.end(), q.begin(), ::tolower);
+            if (n.find(q) != string::npos) kq.push_back(s);
+        }
+        return kq;
+    }
+
+    // ---------- Muon sach ve nha ----------
+    bool muonSachVe(const string& ma) {
+        for (auto it = danhSach.begin(); it != danhSach.end(); ++it) {
+            if ((*it)->getLoai() == "SACH_TV" && (*it)->getMaSach() == ma) {
+                Sach* old = *it;
+                SachMuonVe* mv = new SachMuonVe();
+                mv->setMaSach(old->getMaSach());
+                mv->setTenSach(old->getTenSach());
+                mv->setChuDe(old->getChuDe());
+                mv->setTacGia(old->getTacGia());
+                mv->setNhaXuatBan(old->getNhaXuatBan());
+                mv->setNgayXuatBan(old->getNgayXuatBan());
+                mv->setSoTrang(old->getSoTrang());
+                mv->setSoBan(old->getSoBan());
+                mv->nhapThongTinMuon();
+                delete old;
+                danhSach.erase(it);
+                danhSach.push_back(mv);
+                // Ghi lich su
+                GiaoDich gd;
+                gd.loai     = "MUON_VE";
+                gd.maSach   = mv->getMaSach();
+                gd.tenSach  = mv->getTenSach();
+                gd.tacGia   = mv->getTacGia();
+                gd.thoiGian = mv->getNgayMuon();
+                gd.ghiChu   = "Hen tra: " + mv->getNgayHenTra();
+                lichSuGiaoDich.push_back(gd);
+                daDuocLuu = false;
+                _luuVaXuat();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ---------- Muon sach doc tai cho ----------
+    bool muonSachDoc(const string& ma) {
+        for (auto it = danhSach.begin(); it != danhSach.end(); ++it) {
+            if ((*it)->getLoai() == "SACH_TV" && (*it)->getMaSach() == ma) {
+                Sach* old = *it;
+                SachMuonDoc* md = new SachMuonDoc();
+                md->setMaSach(old->getMaSach());
+                md->setTenSach(old->getTenSach());
+                md->setChuDe(old->getChuDe());
+                md->setTacGia(old->getTacGia());
+                md->setNhaXuatBan(old->getNhaXuatBan());
+                md->setNgayXuatBan(old->getNgayXuatBan());
+                md->setSoTrang(old->getSoTrang());
+                md->setSoBan(old->getSoBan());
+                md->nhapThongTinMuon();
+                delete old;
+                danhSach.erase(it);
+                danhSach.push_back(md);
+                // Ghi lich su
+                GiaoDich gd;
+                gd.loai     = "MUON_DOC";
+                gd.maSach   = md->getMaSach();
+                gd.tenSach  = md->getTenSach();
+                gd.tacGia   = md->getTacGia();
+                gd.thoiGian = md->getGioMuon();
+                gd.ghiChu   = "Gio tra: " + md->getGioTra();
+                lichSuGiaoDich.push_back(gd);
+                daDuocLuu = false;
+                _luuVaXuat();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ---------- Tra sach ----------
+    // Tra ve: true = thanh cong, false = huy hoac khong tim thay
+    bool traSach(const string& ma) {
+        for (auto it = danhSach.begin(); it != danhSach.end(); ++it) {
+            string loai = (*it)->getLoai();
+            if ((loai == "MUON_VE" || loai == "MUON_DOC") && (*it)->getMaSach() == ma) {
+                Sach* old = *it;
+
+                cout << "\n[THONG TIN SACH SẮP TRA LAI]\n";
+                old->xuatThongTin();
+
+                cout << "\nXac nhan tra sach nay? (Y/N): ";
+                string xacNhan; getline(cin, xacNhan);
+                if (xacNhan != "Y" && xacNhan != "y") {
+                    cout << "  [DA HUY] Khong thuc hien tra sach.\n";
+                    return false;
+                }
+
+                string ngayTraThucTe = layNgayHomNay();
+                cout << "  Ngay tra thuc te (dd/mm/yyyy) [Enter = hom nay " << ngayTraThucTe << "]: ";
+                string nhapNgay; getline(cin, nhapNgay);
+                if (!nhapNgay.empty()) ngayTraThucTe = nhapNgay;
+
+                string ghiChuTra = "Tra ngay: " + ngayTraThucTe;
+                string loaiGD    = (loai == "MUON_VE") ? "TRA_VE" : "TRA_DOC";
+
+                if (loai == "MUON_VE") {
+                    SachMuonVe* mv = dynamic_cast<SachMuonVe*>(old);
+                    if (mv && mv->isQuaHan()) {
+                        cout << "\n  [CANH BAO] Sach QUA HAN TRA! Ngay hen tra: " << mv->getNgayHenTra() << "\n";
+                        ghiChuTra += " [QUA HAN - Hen: " + mv->getNgayHenTra() + "]";
+                    }
+                } else {
+                    SachMuonDoc* md = dynamic_cast<SachMuonDoc*>(old);
+                    if (md && md->isQuaGio()) {
+                        cout << "\n  [CANH BAO] Sach QUA GIO TRA! Gio tra du kien: " << md->getGioTra() << "\n";
+                        ghiChuTra += " [QUA GIO - Hen: " + md->getGioTra() + "]";
+                    }
+                }
+
+                // Ghi lich su
+                GiaoDich gd;
+                gd.loai     = loaiGD;
+                gd.maSach   = old->getMaSach();
+                gd.tenSach  = old->getTenSach();
+                gd.tacGia   = old->getTacGia();
+                gd.thoiGian = ngayTraThucTe;
+                gd.ghiChu   = ghiChuTra;
+                lichSuGiaoDich.push_back(gd);
+
+                // Chuyen ve SACH_TV
+                SachThuVien* st = new SachThuVien();
+                st->setMaSach(old->getMaSach());
+                st->setTenSach(old->getTenSach());
+                st->setChuDe(old->getChuDe());
+                st->setTacGia(old->getTacGia());
+                st->setNhaXuatBan(old->getNhaXuatBan());
+                st->setNgayXuatBan(old->getNgayXuatBan());
+                st->setSoTrang(old->getSoTrang());
+                st->setSoBan(old->getSoBan());
+
+                delete old;
+                danhSach.erase(it);
+                danhSach.push_back(st);
+                daDuocLuu = false;
+                _luuVaXuat();
+
+                cout << "\n  [TRA SACH THANH CONG] Sach da duoc tra ngay " << ngayTraThucTe << ".\n\n";
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ---------- Xoa / Sua ----------
+    bool xoaSach(const string& ma) {
+        for (auto it = danhSach.begin(); it != danhSach.end(); ++it) {
+            if ((*it)->getMaSach() == ma) {
+                delete *it;
+                danhSach.erase(it);
+                daDuocLuu = false;
+                _luuVaXuat();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool suaSach(const string& ma) {
+        for (auto s : danhSach) {
+            if (s->getMaSach() == ma) {
+                cout << "\nThong tin hien tai:\n";
+                s->xuatThongTin();
+                cout << "\nNhap thong tin moi:\n";
+                s->nhapThongTin();
+                daDuocLuu = false;
+                _luuVaXuat();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ---------- Xuat danh sach toan bo ----------
+    void xuatDanhSach() const {
+        if (danhSach.empty()) { cout << "\n  [Danh sach trong!]\n"; return; }
+        cout << "\n============================= TOAN BO SACH TRONG THU VIEN ================================\n";
+        vector<int> w = bangNgangWidths();
+        inTieuDeBangNgang();
+        for (size_t i = 0; i < danhSach.size(); i++)
+            danhSach[i]->xuatHangBangNgang((int)i + 1, w);
+        inDuongKe(w);
+        cout << "  ==> TONG SO: " << danhSach.size() << " cuon <==\n\n";
+    }
+
+    // ---------- Thong ke ----------
+    void thongKe() const {
+        int tongSo = (int)danhSach.size();
+        int soTV = 0, soMV = 0, soMD = 0, soMVQH = 0, soMDQG = 0;
+        vector<Sach*> dsQH, dsQG;
+
+        for (auto s : danhSach) {
+            if (s->getLoai() == "SACH_TV") soTV++;
+            else if (s->getLoai() == "MUON_VE") {
+                soMV++;
+                SachMuonVe* mv = dynamic_cast<SachMuonVe*>(s);
+                if (mv && mv->isQuaHan()) { soMVQH++; dsQH.push_back(s); }
+            } else if (s->getLoai() == "MUON_DOC") {
+                soMD++;
+                SachMuonDoc* md = dynamic_cast<SachMuonDoc*>(s);
+                if (md && md->isQuaGio()) { soMDQG++; dsQG.push_back(s); }
+            }
+        }
+
+        cout << "\n  Ngay/Gio hien tai: " << layNgayHomNay() << "  " << layGioHienTai() << "\n\n";
+        vector<int> wTK = {35, 10};
+        inDuongKe(wTK);
+        inHangBang({"THONG KE THU VIEN", "SO LUONG"}, wTK);
+        inDuongKe(wTK);
+        inHangBang({"Tong so sach",                       to_string(tongSo)},  wTK);
+        cout << "+--------------------------------------+------------+\n";
+        inHangBang({"Sach trong thu vien (chua muon)",    to_string(soTV)},    wTK);
+        cout << "+--------------------------------------+------------+\n";
+        inHangBang({"Sach dang muon ve nha",              to_string(soMV)},    wTK);
+        inHangBang({"  >> Trong do: QUA HAN tra",         to_string(soMVQH)},  wTK);
+        cout << "+--------------------------------------+------------+\n";
+        inHangBang({"Sach dang muon doc tai cho",         to_string(soMD)},    wTK);
+        inHangBang({"  >> Trong do: QUA GIO tra",         to_string(soMDQG)},  wTK);
+        inDuongKe(wTK);
+        cout << "\n  Tong giao dich da ghi nhan: " << lichSuGiaoDich.size() << "\n\n";
+
+        if (!dsQH.empty()) {
+            cout << "\n  === SACH MUON VE DA QUA HAN TRA ===\n";
+            vector<int> w = bangNgangWidths();
+            inTieuDeBangNgang();
+            for (size_t i = 0; i < dsQH.size(); i++) dsQH[i]->xuatHangBangNgang((int)i+1, w);
+            inDuongKe(w);
+        }
+        if (!dsQG.empty()) {
+            cout << "\n  === SACH MUON DOC DA QUA GIO TRA ===\n";
+            vector<int> w = bangNgangWidths();
+            inTieuDeBangNgang();
+            for (size_t i = 0; i < dsQG.size(); i++) dsQG[i]->xuatHangBangNgang((int)i+1, w);
+            inDuongKe(w);
+        }
+
+        // Lich su giao dich tren man hinh
+        if (!lichSuGiaoDich.empty()) {
+            cout << "\n  === LICH SU GIAO DICH GAN NHAT (toi da 10) ===\n";
+            vector<int> wGD = {4, 10, 10, 24, 14, 12, 22};
+            inDuongKe(wGD);
+            inHangBang({"STT","LOAI GD","MA SACH","TEN SACH","TAC GIA","THOI GIAN","GHI CHU"}, wGD);
+            inDuongKe(wGD);
+            int start = max(0, (int)lichSuGiaoDich.size() - 10);
+            for (size_t i = start; i < lichSuGiaoDich.size(); i++) {
+                auto& gd = lichSuGiaoDich[i];
+                inHangBang({to_string(i+1), gd.loai, gd.maSach, gd.tenSach,
+                            gd.tacGia, gd.thoiGian, gd.ghiChu}, wGD);
+            }
+            inDuongKe(wGD);
+        }
+    }
+
+    // ---------- Truy cap lich su (de main in lai) ----------
+    const vector<GiaoDich>& getLichSu() const { return lichSuGiaoDich; }
+};
+
+// ============================================================
+// MENU & TIEN ICH NHAP
+// ============================================================
+void inMenu(int soSach) {
+    inDauPhan("   CHUONG TRINH QUAN LY MUON TRA SACH THU VIEN");
+    cout << "| So sach hien co: " << left << setw(33) << soSach << "|\n";
+    cout << "+====================================================+\n";
+    cout << "| 1.  Them sach moi vao thu vien                     |\n";
+    cout << "| 2.  Muon sach ve nha                               |\n";
+    cout << "| 3.  Muon sach doc tai cho                          |\n";
+    cout << "| 4.  Tra sach (muon ve / muon doc)                  |\n";
+    cout << "| 5.  Xoa mot cuon sach (theo Ma)                    |\n";
+    cout << "| 6.  Sua thong tin sach (theo Ma)                   |\n";
+    cout << "| 7.  Xuat danh sach sach tren man hinh              |\n";
+    cout << "| 8.  Xuat bao cao day du ra file text               |\n";
+    cout << "| 9.  Tim kiem sach                                  |\n";
+    cout << "| 10. Thong ke sach                                  |\n";
+    cout << "| 0.  Thoat chuong trinh                             |\n";
+    cout << "+====================================================+\n";
+    cout << "Nhap lua chon: ";
+}
+
+void inMenuTimKiemMuon() {
+    cout << "+------------------------------+\n";
+    cout << "| Tim kiem theo:               |\n";
+    cout << "| 1. Ma sach                   |\n";
+    cout << "| 2. Ten sach (theo tu khoa)   |\n";
+    cout << "+------------------------------+\n";
+    cout << "Nhap lua chon: ";
+}
+
+void inMenuTimKiem() {
+    cout << "+--------------------------------+\n";
+    cout << "| Tim kiem theo:                 |\n";
+    cout << "| 1. Ma sach                     |\n";
+    cout << "| 2. Ten sach (theo tu khoa)     |\n";
+    cout << "| 3. Nha xuat ban (theo tu khoa) |\n";
+    cout << "+--------------------------------+\n";
+    cout << "Nhap lua chon: ";
+}
+
+void inMenuTimKiemTra() {
+    cout << "+------------------------------+\n";
+    cout << "| Tim sach can tra theo:       |\n";
+    cout << "| 1. Ma sach                   |\n";
+    cout << "| 2. Ten sach (theo tu khoa)   |\n";
+    cout << "+------------------------------+\n";
+    cout << "Nhap lua chon: ";
+}
+
+int nhapLuaChon() {
+    int c;
+    while (!(cin >> c)) {
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        cout << "  [Vui long nhap so]: ";
+    }
+    cin.ignore();
+    return c;
+}
+
+void inDanhSachSachTV(const vector<SachThuVien*>& ds) {
+    if (ds.empty()) { cout << "  [Khong tim thay sach nao!]\n"; return; }
+    vector<int> w = {4, 10, 25, 16, 14, 7};
+    inDuongKe(w);
+    inHangBang({"STT","MA SACH","TEN SACH","TAC GIA","NXB","SO BAN"}, w);
+    inDuongKe(w);
+    for (size_t i = 0; i < ds.size(); i++) {
+        inHangBang({to_string(i+1), ds[i]->getMaSach(), ds[i]->getTenSach(),
+                    ds[i]->getTacGia(), ds[i]->getNhaXuatBan(),
+                    to_string(ds[i]->getSoBan())}, w);
+    }
+    inDuongKe(w);
+}
+
+// ============================================================
+// MAIN
+// ============================================================
+int main() {
+    ThuVien tv("ThuVien.txt", "output.txt");
+    int luaChon;
+    do {
+        inMenu(tv.getSoLuong());
+        luaChon = nhapLuaChon();
+
+        switch (luaChon) {
+
+        // ============================
+        case 1: {  // Them sach moi
+            Sach* s = new SachThuVien();
+            s->nhapThongTin();
+            tv.themSach(s);
+            cout << "  [OK] Da them sach moi vao thu vien thanh cong.\n\n";
+            break;
+        }
+
+        // ============================
+        case 2: {  // Muon sach ve nha
+            cout << "\n=== MUON SACH VE NHA ===\n";
+            inMenuTimKiemMuon();
+            int tc = nhapLuaChon();
+            string maTim = "";
+
+            if (tc == 1) {
+                cout << "  Nhap ma sach: ";
+                string ma; getline(cin, ma);
+                SachThuVien* st = tv.timSachThuVienTheoMa(ma);
+                if (!st) {
+                    cout << "\n  [THONG BAO] Sach co ma '" << ma << "' khong co san hoac da co nguoi muon.\n";
+                    break;
+                }
+                cout << "\n[TIM THAY SACH]\n";
+                st->xuatThongTin();
+                maTim = ma;
+            } else if (tc == 2) {
+                cout << "  Nhap ten sach (tu khoa): ";
+                string ten; getline(cin, ten);
+                auto ds = tv.timSachThuVienTheoTen(ten);
+                if (ds.empty()) {
+                    cout << "\n  [THONG BAO] Khong co sach co san voi ten '" << ten << "'.\n";
+                    break;
+                }
+                cout << "\n[KET QUA] Tim thay " << ds.size() << " cuon:\n";
+                inDanhSachSachTV(ds);
+                maTim = (ds.size() == 1) ? ds[0]->getMaSach() : "";
+                if (maTim.empty()) {
+                    cout << "  Nhap ma sach muon muon ve: ";
+                    getline(cin, maTim);
+                }
+            } else { cout << "\n[LOI] Lua chon khong hop le!\n"; break; }
+
+            if (!maTim.empty()) {
+                cout << "\nNhap thong tin muon sach:\n";
+                if (tv.muonSachVe(maTim)) {
+                    // Hien thi lai thong tin sach vua muon
+                    Sach* s = tv.timTheoMa(maTim);
+                    if (s) {
+                        cout << "\n[THONG TIN SACH DA MUON VE]\n";
+                        s->xuatThongTin();
+                    }
+                    cout << "  [OK] Da ghi thong tin muon sach ve thanh cong.\n\n";
+                } else cout << "\n[LOI] Khong the muon sach co ma '" << maTim << "'\n";
+            }
+            break;
+        }
+
+        // ============================
+        case 3: {  // Muon sach doc tai cho
+            cout << "\n=== MUON SACH DOC TAI CHO ===\n";
+            inMenuTimKiemMuon();
+            int tc = nhapLuaChon();
+            string maTim = "";
+
+            if (tc == 1) {
+                cout << "  Nhap ma sach: ";
+                string ma; getline(cin, ma);
+                SachThuVien* st = tv.timSachThuVienTheoMa(ma);
+                if (!st) {
+                    cout << "\n  [THONG BAO] Sach co ma '" << ma << "' khong co san hoac da co nguoi muon.\n";
+                    break;
+                }
+                cout << "\n[TIM THAY SACH]\n";
+                st->xuatThongTin();
+                maTim = ma;
+            } else if (tc == 2) {
+                cout << "  Nhap ten sach (tu khoa): ";
+                string ten; getline(cin, ten);
+                auto ds = tv.timSachThuVienTheoTen(ten);
+                if (ds.empty()) {
+                    cout << "\n  [THONG BAO] Khong co sach co san voi ten '" << ten << "'.\n";
+                    break;
+                }
+                cout << "\n[KET QUA] Tim thay " << ds.size() << " cuon:\n";
+                inDanhSachSachTV(ds);
+                maTim = (ds.size() == 1) ? ds[0]->getMaSach() : "";
+                if (maTim.empty()) {
+                    cout << "  Nhap ma sach muon muon doc: ";
+                    getline(cin, maTim);
+                }
+            } else { cout << "\n[LOI] Lua chon khong hop le!\n"; break; }
+
+            if (!maTim.empty()) {
+                cout << "\nNhap thong tin muon sach:\n";
+                if (tv.muonSachDoc(maTim)) {
+                    Sach* s = tv.timTheoMa(maTim);
+                    if (s) {
+                        cout << "\n[THONG TIN SACH DA MUON DOC]\n";
+                        s->xuatThongTin();
+                    }
+                    cout << "  [OK] Da ghi thong tin muon sach doc thanh cong.\n\n";
+                } else cout << "\n[LOI] Khong the muon sach co ma '" << maTim << "'\n";
+            }
+            break;
+        }
+
+        // ============================
+        case 4: {  // Tra sach
+            cout << "\n=== TRA SACH ===\n";
+            inMenuTimKiemTra();
+            int tc = nhapLuaChon();
+            string maTim = "";
+
+            if (tc == 1) {
+                cout << "  Nhap ma sach can tra: ";
+                string ma; getline(cin, ma);
+                Sach* s = tv.timTheoMa(ma);
+                if (!s) { cout << "\n[LOI] Khong tim thay sach co ma '" << ma << "'\n"; break; }
+                if (s->getLoai() == "SACH_TV") {
+                    cout << "\n  [THONG BAO] Sach co ma '" << ma << "' chua duoc muon, khong can tra.\n";
+                    break;
+                }
+                maTim = ma;
+            } else if (tc == 2) {
+                cout << "  Nhap ten sach (tu khoa): ";
+                string ten; getline(cin, ten);
+                auto ds = tv.timTheoTen(ten);
+                vector<Sach*> dsMuon;
+                for (auto s : ds)
+                    if (s->getLoai() == "MUON_VE" || s->getLoai() == "MUON_DOC")
+                        dsMuon.push_back(s);
+                if (dsMuon.empty()) {
+                    cout << "\n  [THONG BAO] Khong co sach dang muon ten '" << ten << "'.\n";
+                    break;
+                }
+                vector<int> w2 = {4, 9, 10, 24, 14, 12, 13};
+                inDuongKe(w2);
+                inHangBang({"STT","LOAI","MA SACH","TEN SACH","TAC GIA","MUON/GIO","HEN TRA/GIO"}, w2);
+                inDuongKe(w2);
+                for (size_t i = 0; i < dsMuon.size(); i++) {
+                    string e1 = "-", e2 = "-";
+                    if (dsMuon[i]->getLoai() == "MUON_VE") {
+                        SachMuonVe* mv = dynamic_cast<SachMuonVe*>(dsMuon[i]);
+                        e1 = mv->getNgayMuon();
+                        e2 = mv->getNgayHenTra() + (mv->isQuaHan() ? "[QH]":"");
+                    } else {
+                        SachMuonDoc* md = dynamic_cast<SachMuonDoc*>(dsMuon[i]);
+                        e1 = md->getGioMuon();
+                        e2 = md->getGioTra() + (md->isQuaGio() ? "[QG]":"");
+                    }
+                    inHangBang({to_string(i+1), dsMuon[i]->getLoai(), dsMuon[i]->getMaSach(),
+                                dsMuon[i]->getTenSach(), dsMuon[i]->getTacGia(), e1, e2}, w2);
+                }
+                inDuongKe(w2);
+                maTim = (dsMuon.size() == 1) ? dsMuon[0]->getMaSach() : "";
+                if (maTim.empty()) {
+                    cout << "  Nhap ma sach can tra: ";
+                    getline(cin, maTim);
+                }
+            } else { cout << "\n[LOI] Lua chon khong hop le!\n"; break; }
+
+            if (!maTim.empty()) {
+                if (!tv.traSach(maTim))
+                    cout << "\n[LOI] Khong the tra sach co ma '" << maTim << "'.\n";
+            }
+            break;
+        }
+
+        // ============================
+        case 5: {  // Xoa sach
+            cout << "  Nhap ma sach can xoa: ";
+            string ma; getline(cin, ma);
+            if (tv.xoaSach(ma)) cout << "  [OK] Da XOA sach co ma '" << ma << "'\n\n";
+            else cout << "\n[LOI] Khong tim thay sach co ma '" << ma << "'\n";
+            break;
+        }
+
+        // ============================
+        case 6: {  // Sua sach
+            cout << "  Nhap ma sach can sua: ";
+            string ma; getline(cin, ma);
+            if (tv.suaSach(ma)) cout << "  [OK] Da sua thong tin sach thanh cong!\n\n";
+            else cout << "\n[LOI] Khong tim thay sach co ma '" << ma << "'\n";
+            break;
+        }
+
+        // ============================
+        case 7: {  // Xuat danh sach man hinh
+            tv.xuatDanhSach();
+            break;
+        }
+
+        // ============================
+        case 8: {  // Xuat bao cao ra file (BAO GOM TAT CA NOI DUNG)
+            cout << "\n  Dang xuat bao cao day du ra file '" << tv.getTenFileBaoCao() << "'...\n";
+            tv.xuatFileBaoCao();
+            break;
+        }
+
+        // ============================
+        case 9: {  // Tim kiem
+            inMenuTimKiem();
+            int tc = nhapLuaChon();
+            if (tc == 1) {
+                cout << "  Nhap ma sach: ";
+                string ma; getline(cin, ma);
+                Sach* s = tv.timTheoMa(ma);
+                if (s) s->xuatThongTin();
+                else   cout << "\n[LOI] Khong tim thay sach co ma '" << ma << "'\n";
+            } else if (tc == 2) {
+                cout << "  Nhap ten sach (tu khoa): ";
+                string ten; getline(cin, ten);
+                auto kq = tv.timTheoTen(ten);
+                if (kq.empty()) cout << "\n[LOI] Khong tim thay!\n";
+                else { cout << "\n[KET QUA] Tim thay " << kq.size() << " cuon:\n"; for (auto s : kq) s->xuatThongTin(); }
+            } else if (tc == 3) {
+                cout << "  Nhap ten NXB (tu khoa): ";
+                string nxb; getline(cin, nxb);
+                auto kq = tv.timTheoNXB(nxb);
+                if (kq.empty()) cout << "\n[LOI] Khong tim thay!\n";
+                else { cout << "\n[KET QUA] Tim thay " << kq.size() << " cuon:\n"; for (auto s : kq) s->xuatThongTin(); }
+            } else cout << "\n[LOI] Lua chon khong hop le!\n";
+            break;
+        }
+
+        // ============================
+        case 10: {  // Thong ke
+            tv.thongKe();
+            break;
+        }
+
+        // ============================
+        case 0: {  // Thoat
+            tv.ghiFile();
+            cout << "\n  Cam on ban da su dung chuong trinh. Tam biet!\n\n";
+            break;
+        }
+
+        default:
+            cout << "\n[LOI] Lua chon '" << luaChon << "' khong hop le, vui long nhap lai!\n";
+        }
+
+    } while (luaChon != 0);
+
+    return 0;
+}
